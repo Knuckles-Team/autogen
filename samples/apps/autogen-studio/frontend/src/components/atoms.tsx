@@ -1124,199 +1124,368 @@ export const AgentFlowSpecView = ({
   return (
     <>
       <div className="text-accent ">{title}</div>
-      <GroupView
-        title=<div className="px-2">{flowSpec?.config?.name}</div>
-        className="mb-4 bg-primary  "
-      >
-        <ControlRowView
-          title="Agent Name"
-          className="mt-4"
-          description="Name of the agent"
-          value={flowSpec?.config?.name}
-          control={
-            <>
-              <Input
-                className="mt-2"
-                placeholder="Agent Name"
-                value={flowSpec?.config?.name}
-                onChange={(e) => {
-                  onControlChange(e.target.value, "name");
-                }}
-              />
-              {!nameValidation.status && (
-                <div className="text-xs text-red-500 mt-2">
-                  {nameValidation.message}
-                </div>
-              )}
-            </>
-          }
-        />
+      <div className="flex">
+        {/* Common fields */}
+        <div className="w-full">
+					<GroupView
+						title=<div className="px-2">{flowSpec?.config?.name}</div>
+						className="mb-4 bg-primary  "
+					>
+						<ControlRowView
+							title="Agent Type"
+							description="The type of agent to use"
+							value={flowSpec?.config?.agent_type}
+							control={
+								<Select
+									className="mt-2 w-full"
+									defaultValue={flowSpec?.config?.agent_type}
+									onChange={(value: any) => {
+										onControlChange(value, "agent_type");
+									}}
+									options={
+										[
+											{ label: "Assistant", value: "assistant" },
+											{ label: "Retrieve Assistant", value: "retrieve_assistant" },
+											{ label: "Retrieve User Proxy", value: "retrieve_user_proxy" },
+										] as any
+									}
+								/>
+							}
+						/>
 
-        <ControlRowView
-          title="Agent Description"
-          className="mt-4"
-          description="Description of the agent, used by other agents
-          (e.g. the GroupChatManager) to decide when to call upon this agent. (Default: system_message)"
-          value={flowSpec.config.description || ""}
-          control={
-            <Input
-              className="mt-2"
-              placeholder="Agent Description"
-              value={flowSpec.config.description || ""}
-              onChange={(e) => {
-                onControlChange(e.target.value, "description");
-              }}
-            />
-          }
-        />
+						<ControlRowView
+							title="Agent Name"
+							className="mt-4"
+							description="Name of the agent"
+							value={flowSpec?.config?.name}
+							control={
+								<>
+									<Input
+										className="mt-2"
+										placeholder="Agent Name"
+										value={flowSpec?.config?.name}
+										onChange={(e) => {
+											onControlChange(e.target.value, "name");
+										}}
+									/>
+									{!nameValidation.status && (
+										<div className="text-xs text-red-500 mt-2">
+											{nameValidation.message}
+										</div>
+									)}
+								</>
+							}
+						/>
 
-        <ControlRowView
-          title="Max Consecutive Auto Reply"
-          className="mt-4"
-          description="Max consecutive auto reply messages before termination."
-          value={flowSpec.config?.max_consecutive_auto_reply}
-          control={
-            <Slider
-              min={1}
-              max={flowSpec.type === "groupchat" ? 600 : 30}
-              defaultValue={flowSpec.config.max_consecutive_auto_reply}
-              step={1}
-              onChange={(value: any) => {
-                onControlChange(value, "max_consecutive_auto_reply");
-              }}
-            />
-          }
-        />
+						<ControlRowView
+							title="Agent Description"
+							className="mt-4"
+							description="Description of the agent, used by other agents
+							(e.g. the GroupChatManager) to decide when to call upon this agent. (Default: system_message)"
+							value={flowSpec.config.description || ""}
+							control={
+								<Input
+									className="mt-2"
+									placeholder="Agent Description"
+									value={flowSpec.config.description || ""}
+									onChange={(e) => {
+										onControlChange(e.target.value, "description");
+									}}
+								/>
+							}
+						/>
 
-        <ControlRowView
-          title="Agent Default Auto Reply"
-          className="mt-4"
-          description="Default auto reply when no code execution or llm-based reply is generated."
-          value={flowSpec.config.default_auto_reply || ""}
-          control={
-            <Input
-              className="mt-2"
-              placeholder="Agent Description"
-              value={flowSpec.config.default_auto_reply || ""}
-              onChange={(e) => {
-                onControlChange(e.target.value, "default_auto_reply");
-              }}
-            />
-          }
-        />
+						<ControlRowView
+							title="Max Consecutive Auto Reply"
+							className="mt-4"
+							description="Max consecutive auto reply messages before termination."
+							value={flowSpec.config?.max_consecutive_auto_reply}
+							control={
+								<Slider
+									min={1}
+									max={flowSpec.type === "groupchat" ? 600 : 30}
+									defaultValue={flowSpec.config.max_consecutive_auto_reply}
+									step={1}
+									onChange={(value: any) => {
+										onControlChange(value, "max_consecutive_auto_reply");
+									}}
+								/>
+							}
+						/>
 
-        <ControlRowView
-          title="Human Input Mode"
-          description="Defines when to request human input"
-          value={flowSpec.config.human_input_mode}
-          control={
-            <Select
-              className="mt-2 w-full"
-              defaultValue={flowSpec.config.human_input_mode}
-              onChange={(value: any) => {
-                onControlChange(value, "human_input_mode");
-              }}
-              options={
-                [
-                  { label: "NEVER", value: "NEVER" },
-                  // { label: "TERMINATE", value: "TERMINATE" },
-                  // { label: "ALWAYS", value: "ALWAYS" },
-                ] as any
-              }
-            />
-          }
-        />
+						<ControlRowView
+							title="Agent Default Auto Reply"
+							className="mt-4"
+							description="Default auto reply when no code execution or llm-based reply is generated."
+							value={flowSpec.config.default_auto_reply || ""}
+							control={
+								<Input
+									className="mt-2"
+									placeholder="Agent Description"
+									value={flowSpec.config.default_auto_reply || ""}
+									onChange={(e) => {
+										onControlChange(e.target.value, "default_auto_reply");
+									}}
+								/>
+							}
+						/>
 
-        {llm_config && llm_config.config_list.length > 0 && (
-          <ControlRowView
-            title="System Message"
-            className="mt-4"
-            description="Free text to control agent behavior"
-            value={flowSpec.config.system_message}
-            control={
-              <TextArea
-                className="mt-2 w-full"
-                value={flowSpec.config.system_message}
-                rows={3}
-                onChange={(e) => {
-                  onControlChange(e.target.value, "system_message");
-                }}
-              />
-            }
-          />
-        )}
+						<ControlRowView
+							title="Human Input Mode"
+							description="Defines when to request human input"
+							value={flowSpec.config.human_input_mode}
+							control={
+								<Select
+									className="mt-2 w-full"
+									defaultValue={flowSpec.config.human_input_mode}
+									onChange={(value: any) => {
+										onControlChange(value, "human_input_mode");
+									}}
+									options={
+										[
+											{ label: "NEVER", value: "NEVER" },
+											{ label: "TERMINATE", value: "TERMINATE" },
+											{ label: "ALWAYS", value: "ALWAYS" },
+										] as any
+									}
+								/>
+							}
+						/>
 
-        {llm_config && (
-          <ControlRowView
-            title="Model"
-            className="mt-4"
-            description="Defines which models are used for the agent."
-            value={llm_config?.config_list?.[0]?.model}
-            control={
-              <ModelSelector
-                className="mt-2 w-full"
-                configs={llm_config.config_list || []}
-                setConfigs={(config_list: IModelConfig[]) => {
-                  const llm_config = {
-                    ...(flowSpec.config.llm_config || { temperature: 0.1 }),
-                    config_list,
-                  };
-                  onControlChange(llm_config, "llm_config");
-                }}
-              />
-            }
-          />
-        )}
+						{llm_config && llm_config.config_list.length > 0 && (
+							<ControlRowView
+								title="System Message"
+								className="mt-4"
+								description="Free text to control agent behavior"
+								value={flowSpec.config.system_message}
+								control={
+									<TextArea
+										className="mt-2 w-full"
+										value={flowSpec.config.system_message}
+										rows={3}
+										onChange={(e) => {
+											onControlChange(e.target.value, "system_message");
+										}}
+									/>
+								}
+							/>
+						)}
 
-        {llm_config && llm_config.config_list.length > 0 && (
-          <ControlRowView
-            title="Temperature"
-            className="mt-4"
-            description="Defines the randomness of the agent's response."
-            value={llm_config.temperature}
-            control={
-              <Slider
-                min={0}
-                max={2}
-                step={0.1}
-                defaultValue={llm_config.temperature || 0.1}
-                onChange={(value: any) => {
-                  const llm_config = {
-                    ...flowSpec.config.llm_config,
-                    temperature: value,
-                  };
-                  onControlChange(llm_config, "llm_config");
-                }}
-              />
-            }
-          />
-        )}
+						{llm_config && (
+							<ControlRowView
+								title="Model"
+								className="mt-4"
+								description="Defines which models are used for the agent."
+								value={llm_config?.config_list?.[0]?.model}
+								control={
+									<ModelSelector
+										className="mt-2 w-full"
+										configs={llm_config.config_list || []}
+										setConfigs={(config_list: IModelConfig[]) => {
+											const llm_config = {
+												...(flowSpec.config.llm_config || { temperature: 0.1 }),
+												config_list,
+											};
+											onControlChange(llm_config, "llm_config");
+										}}
+									/>
+								}
+							/>
+						)}
 
-        {
-          <ControlRowView
-            title="Skills"
-            className="mt-4"
-            description="Defines skills available to the agent."
-            value={(flowSpec.skills && flowSpec.skills[0]?.title) || ""}
-            control={
-              <SkillSelector
-                className="mt-2 w-full"
-                skills={flowSpec.skills || []}
-                setSkills={(skills: ISkill[]) => {
-                  const updatedFlowSpec = {
-                    ...localFlowSpec,
-                    skills,
-                  };
-                  setLocalFlowSpec(updatedFlowSpec);
-                  setFlowSpec(updatedFlowSpec);
-                }}
-              />
-            }
-          />
-        }
-      </GroupView>
-    </>
-  );
+						{llm_config && llm_config.config_list.length > 0 && (
+							<ControlRowView
+								title="Temperature"
+								className="mt-4"
+								description="Defines the randomness of the agent's response."
+								value={llm_config.temperature}
+								control={
+									<Slider
+										min={0}
+										max={2}
+										step={0.1}
+										defaultValue={llm_config.temperature || 0.1}
+										onChange={(value: any) => {
+											const llm_config = {
+												...flowSpec.config.llm_config,
+												temperature: value,
+											};
+											onControlChange(llm_config, "llm_config");
+										}}
+									/>
+								}
+							/>
+						)}
+
+						{
+							<ControlRowView
+								title="Skills"
+								className="mt-4"
+								description="Defines skills available to the agent."
+								value={(flowSpec.skills && flowSpec.skills[0]?.title) || ""}
+								control={
+									<SkillSelector
+										className="mt-2 w-full"
+										skills={flowSpec.skills || []}
+										setSkills={(skills: ISkill[]) => {
+											const updatedFlowSpec = {
+												...localFlowSpec,
+												skills,
+											};
+											setLocalFlowSpec(updatedFlowSpec);
+											setFlowSpec(updatedFlowSpec);
+										}}
+									/>
+								}
+							/>
+						}
+					</GroupView>
+				</div>
+				{flowSpec.config.agent_type === "retrieve_user_proxy" && (
+					<div className="w-1/2 pl-4">
+						<GroupView
+							title="Retrieve User Proxy Additional Fields"
+							className="mb-4 bg-primary"
+						>
+							<ControlRowView
+								title="Database Type"
+								description="Type of Vector database to use."
+								value={flowSpec.config.db_type}
+								control={
+									<Select
+										className="mt-2 w-full"
+										defaultValue={flowSpec.config.db_type}
+										onChange={(value: any) => {
+											onControlChange(value, "db_type");
+										}}
+										options={
+											[
+												{ label: "ChromaDB", value: "chromadb" },
+												{ label: "PGVector", value: "pgvector" },
+												{ label: "Qdrant", value: "qdrant" },
+											] as any
+										}
+									/>
+								}
+							/>
+							<ControlRowView
+								title="Collection Name"
+								className="mt-4"
+								description="Name of the collection to use. It will create it if it does not exist."
+								value={flowSpec.config.collection_name || ""}
+								control={
+									<Input
+										className="mt-2"
+										placeholder="Collection Name"
+										value={flowSpec.config.collection_name || ""}
+										onChange={(e) => {
+											onControlChange(e.target.value, "collection_name");
+										}}
+									/>
+								}
+							/>
+							<ControlRowView
+								title="Connection String"
+								className="mt-4"
+								description="Database connection string."
+								value={flowSpec.config.vectordb_connection_string || ""}
+								control={
+									<Input
+										className="mt-2"
+										placeholder="Connection String"
+										value={flowSpec.config.vectordb_connection_string || ""}
+										onChange={(e) => {
+											onControlChange(e.target.value, "vectordb_connection_string");
+										}}
+									/>
+								}
+							/>
+							<ControlRowView
+								title="Host"
+								className="mt-4"
+								description="Database host."
+								value={flowSpec.config.vectordb_host || ""}
+								control={
+									<Input
+										className="mt-2"
+										placeholder="Database Host"
+										value={flowSpec.config.vectordb_host || ""}
+										onChange={(e) => {
+											onControlChange(e.target.value, "vectordb_host");
+										}}
+									/>
+								}
+							/>
+							<ControlRowView
+								title="Port"
+								className="mt-4"
+								description="Database port."
+								value={flowSpec.config.vectordb_port || ""}
+								control={
+									<Input
+										className="mt-2"
+										placeholder="Database Port"
+										value={flowSpec.config.vectordb_port || ""}
+										onChange={(e) => {
+											onControlChange(e.target.value, "vectordb_port");
+										}}
+									/>
+								}
+							/>
+							<ControlRowView
+								title="Database"
+								className="mt-4"
+								description="Database name."
+								value={flowSpec.config.vectordb_name || ""}
+								control={
+									<Input
+										className="mt-2"
+										placeholder="Database Name"
+										value={flowSpec.config.vectordb_name || ""}
+										onChange={(e) => {
+											onControlChange(e.target.value, "vectordb_name");
+										}}
+									/>
+								}
+							/>
+							<ControlRowView
+								title="Username"
+								className="mt-4"
+								description="Database username."
+								value={flowSpec.config.vectordb_username || ""}
+								control={
+									<Input
+										className="mt-2"
+										placeholder="Database Username"
+										value={flowSpec.config.vectordb_username || ""}
+										onChange={(e) => {
+											onControlChange(e.target.value, "vectordb_username");
+										}}
+									/>
+								}
+							/>
+							<ControlRowView
+								title="Password"
+								className="mt-4"
+								description="Database password."
+								value={flowSpec.config.vectordb_password || ""}
+								control={
+									<Input
+										className="mt-2"
+										placeholder="Database Password"
+										value={flowSpec.config.vectordb_password || ""}
+										onChange={(e) => {
+											onControlChange(e.target.value, "vectordb_password");
+										}}
+									/>
+								}
+							/>
+						</GroupView>
+					</div>
+				)}
+			</div>
+		</>
+	);
 };
 
 interface SkillSelectorProps {
