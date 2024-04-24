@@ -1145,6 +1145,7 @@ export const AgentFlowSpecView = ({
 									options={
 										[
 											{ label: "Assistant", value: "assistant" },
+											{ label: "User Proxy", value: "user_proxy" },
 											{ label: "Retrieve Assistant", value: "retrieve_assistant" },
 											{ label: "Retrieve User Proxy", value: "retrieve_user_proxy" },
 										] as any
@@ -1350,11 +1351,11 @@ export const AgentFlowSpecView = ({
 							<ControlRowView
 								title="Database Type"
 								description="Type of Vector database to use."
-								value={flowSpec.config.db_type}
+								value={flowSpec.config.vectordb}
 								control={
 									<Select
 										className="mt-2 w-full"
-										defaultValue={flowSpec.config.db_type}
+										defaultValue={flowSpec.config.vectordb}
 										onChange={(value: any) => {
 											onControlChange(value, "db_type");
 										}}
@@ -1403,7 +1404,7 @@ export const AgentFlowSpecView = ({
 							<ControlRowView
 								title="Host"
 								className="mt-4"
-								description="Database host."
+								description="Database Host."
 								value={flowSpec.config.vectordb_host || ""}
 								control={
 									<Input

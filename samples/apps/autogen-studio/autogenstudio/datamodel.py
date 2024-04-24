@@ -126,7 +126,7 @@ class AgentConfig:
 class AgentFlowSpec:
     """Data model to help flow load agents from config"""
 
-    type: Literal["assistant", "userproxy"]
+    type: Literal["assistant", "userproxy", "retrieve_assistant", "retrieve_user_proxy"]
     config: AgentConfig
     id: Optional[str] = None
     timestamp: Optional[str] = None
