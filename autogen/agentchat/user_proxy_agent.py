@@ -1,7 +1,7 @@
 from typing import Callable, Dict, List, Literal, Optional, Union
 
+from ..runtime_logging import log_new_agent, logging_enabled
 from .conversable_agent import ConversableAgent
-from ..runtime_logging import logging_enabled, log_new_agent
 
 
 class UserProxyAgent(ConversableAgent):
@@ -90,9 +90,9 @@ class UserProxyAgent(ConversableAgent):
             code_execution_config=code_execution_config,
             llm_config=llm_config,
             default_auto_reply=default_auto_reply,
-            description=description
-            if description is not None
-            else self.DEFAULT_USER_PROXY_AGENT_DESCRIPTIONS[human_input_mode],
+            description=(
+                description if description is not None else self.DEFAULT_USER_PROXY_AGENT_DESCRIPTIONS[human_input_mode]
+            ),
         )
 
         if logging_enabled():

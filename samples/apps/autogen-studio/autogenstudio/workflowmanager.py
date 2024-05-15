@@ -1,29 +1,26 @@
-import copy
 import os
-from typing import List, Optional, Union, Dict
-
-from requests import Session
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
 import autogen
+
 from .datamodel import (
-    AgentConfig,
-    AgentFlowSpec,
-    AgentWorkFlowConfig,
+    Agent,
+    AgentType,
     Message,
     SocketMessage,
 )
-from .utils import get_skills_prompt, clear_folder, sanitize_model, save_skills_to_file
-from datetime import datetime
+from .utils import clear_folder, get_skills_from_prompt, load_code_execution_config, sanitize_model
 
 
-class AutoGenWorkFlowManager:
+class WorkflowManager:
     """
     AutoGenWorkFlowManager class to load agents from a provided configuration and run a chat between them
     """
 
     def __init__(
         self,
-        config: AgentWorkFlowConfig,
+        workflow: Dict,
         history: Optional[List[Message]] = None,
         work_dir: str = None,
         clear_work_dir: bool = True,
@@ -39,23 +36,57 @@ class AutoGenWorkFlowManager:
             history: An optional list of previous messages to populate the agents' history.
 
         """
-        self.workflow_skills = []
+        # TODO - improved typing for workflow
         self.send_message_function = send_message_function
         self.connection_id = connection_id
         self.work_dir = work_dir or "work_dir"
         if clear_work_dir:
             clear_folder(self.work_dir)
-        self.config = config
-        # given the config, return an AutoGen agent object
-        self.sender = self.load(config.sender)
-        # given the config, return an AutoGen agent object
-        self.receiver = self.load(config.receiver)
-        # save all agent skills to skills.py
-        save_skills_to_file(self.workflow_skills, self.work_dir)
+        self.workflow = workflow
+        self.sender = self.load(workflow.get("sender"))
+        self.receiver = self.load(workflow.get("receiver"))
         self.agent_history = []
 
         if history:
-            self.populate_history(history)
+            self._populate_history(history)
+
+    def _serialize_agent(
+        self,
+        agent: Agent,
+        mode: str = "python",
+        include: Optional[List[str]] = {"config"},
+        exclude: Optional[List[str]] = None,
+    ) -> Dict:
+        """ """
+        # exclude = ["id","created_at", "updated_at","user_id","type"]
+        exclude = exclude or {}
+        include = include or {}
+        if agent.type != AgentType.groupchat:
+            exclude.update(
+                {
+                    "config": {
+                        "admin_name",
+                        "messages",
+                        "max_round",
+                        "admin_name",
+                        "speaker_selection_method",
+                        "allow_repeat_speaker",
+                    }
+                }
+            )
+        else:
+            include = {
+                "config": {
+                    "admin_name",
+                    "messages",
+                    "max_round",
+                    "admin_name",
+                    "speaker_selection_method",
+                    "allow_repeat_speaker",
+                }
+            }
+        result = agent.model_dump(warnings=False, exclude=exclude, include=include, mode=mode)
+        return result["config"]
 
     def process_message(
         self,
@@ -79,11 +110,7 @@ class AutoGenWorkFlowManager:
             sender_type: The type of the sender of the message.
         """
 
-        message = (
-            message
-            if isinstance(message, dict)
-            else {"content": message, "role": "user"}
-        )
+        message = message if isinstance(message, dict) else {"content": message, "role": "user"}
         message_payload = {
             "recipient": receiver.name,
             "sender": sender.name,
@@ -93,19 +120,8 @@ class AutoGenWorkFlowManager:
             "connection_id": self.connection_id,
             "message_type": "agent_message",
         }
-
         # if the agent will respond to the message, or the message is sent by a groupchat agent. This avoids adding groupchat broadcast messages to the history (which are sent with request_reply=False), or when agent populated from history
-        if request_reply is not False or (sender_type == "groupchat" and not silent):
-            print(
-                "Request reply",
-                request_reply,
-                "sender_type",
-                sender_type,
-                "silent",
-                silent,
-                "sender",
-                sender.name,
-            )
+        if request_reply is not False or sender_type == "groupchat":
             self.agent_history.append(message_payload)  # add to history
             if self.send_message_function:  # send over the message queue
                 socket_msg = SocketMessage(
@@ -115,22 +131,7 @@ class AutoGenWorkFlowManager:
                 )
                 self.send_message_function(socket_msg.dict())
 
-    def _sanitize_history_message(self, message: str) -> str:
-        """
-        Sanitizes the message e.g. remove references to execution completed
-
-        Args:
-            message: The message to be sanitized.
-
-        Returns:
-            The sanitized message.
-        """
-        to_replace = ["execution succeeded", "exitcode"]
-        for replace in to_replace:
-            message = message.replace(replace, "")
-        return message
-
-    def populate_history(self, history: List[Message]) -> None:
+    def _populate_history(self, history: List[Message]) -> None:
         """
         Populates the agent message history from the provided list of messages.
 
@@ -155,19 +156,12 @@ class AutoGenWorkFlowManager:
                     silent=True,
                 )
 
-    def sanitize_agent_spec(self, agent_spec: AgentFlowSpec) -> AgentFlowSpec:
-        """
-        Sanitizes the agent spec by setting loading defaults
+    def sanitize_agent(self, agent: Dict) -> Agent:
+        """ """
 
-        Args:
-            config: The agent configuration to be sanitized.
-            agent_type: The type of the agent.
-
-        Returns:
-            The sanitized agent configuration.
-        """
-
-        agent_spec.config.is_termination_msg = agent_spec.config.is_termination_msg or (
+        skills = agent.get("skills", [])
+        agent = Agent.model_validate(agent)
+        agent.config.is_termination_msg = agent.config.is_termination_msg or (
             lambda x: "TERMINATE" in x.get("content", "").rstrip()[-20:]
         )
 
@@ -177,45 +171,33 @@ class AutoGenWorkFlowManager:
             else:
                 return "You are a helpful AI Assistant."
 
-        # sanitize llm_config if present
-        if agent_spec.config.llm_config is not False:
+        if agent.config.llm_config is not False:
             config_list = []
-            for llm in agent_spec.config.llm_config.config_list:
+            for llm in agent.config.llm_config.config_list:
                 # check if api_key is present either in llm or env variable
                 if "api_key" not in llm and "OPENAI_API_KEY" not in os.environ:
-                    error_message = f"api_key is not present in llm_config or OPENAI_API_KEY env variable for agent ** {agent_spec.config.name}**. Update your workflow to provide an api_key to use the LLM."
+                    error_message = f"api_key is not present in llm_config or OPENAI_API_KEY env variable for agent ** {agent.config.name}**. Update your workflow to provide an api_key to use the LLM."
                     raise ValueError(error_message)
 
                 # only add key if value is not None
                 sanitized_llm = sanitize_model(llm)
                 config_list.append(sanitized_llm)
-            agent_spec.config.llm_config.config_list = config_list
+            agent.config.llm_config.config_list = config_list
 
-        if agent_spec.config.code_execution_config is not False:
-            code_execution_config = agent_spec.config.code_execution_config or {}
-            code_execution_config["work_dir"] = self.work_dir
-            # tbd check if docker is installed
-            code_execution_config["use_docker"] = False
-            agent_spec.config.code_execution_config = code_execution_config
+        agent.config.code_execution_config = load_code_execution_config(
+            agent.config.code_execution_config, work_dir=self.work_dir
+        )
 
-        if agent_spec.skills:
-            # add skills to workflow_skills
-            print("processing skills -- ", len(agent_spec.skills))
-            self.workflow_skills.extend(agent_spec.skills)
-            # get skill prompt
-            skills_prompt = get_skills_prompt(agent_spec.skills, self.work_dir)
-            if agent_spec.config.system_message:
-                agent_spec.config.system_message = (
-                    agent_spec.config.system_message + "\n\n" + skills_prompt
-                )
+        if skills:
+            skills_prompt = ""
+            skills_prompt = get_skills_from_prompt(skills, self.work_dir)
+            if agent.config.system_message:
+                agent.config.system_message = agent.config.system_message + "\n\n" + skills_prompt
             else:
-                agent_spec.config.system_message = (
-                    get_default_system_message(agent_spec.type) + "\n\n" + skills_prompt
-                )
+                agent.config.system_message = get_default_system_message(agent.type) + "\n\n" + skills_prompt
+        return agent
 
-        return agent_spec
-
-    def load(self, agent_spec: AgentFlowSpec) -> autogen.Agent:
+    def load(self, agent: Any) -> autogen.Agent:
         """
         Loads an agent based on the provided agent specification.
 
@@ -225,58 +207,39 @@ class AutoGenWorkFlowManager:
         Returns:
             An instance of the loaded agent.
         """
-        agent_spec = self.sanitize_agent_spec(agent_spec)
-        if agent_spec.type == "groupchat":
-            print(
-                "loading groupchat ....",
-                "# agents : ",
-                len(agent_spec.groupchat_config.agents),
+        if not agent:
+            raise ValueError(
+                "An agent configuration in this workflow is empty. Please provide a valid agent configuration."
             )
-            agents = []
-            for group_agent_spec in agent_spec.groupchat_config.agents:
-                print("processing group agents ....")
-                agent = self.load(group_agent_spec)
-                agents.append(agent)
 
-            group_chat_config = agent_spec.groupchat_config.dict()
-            group_chat_config["agents"] = agents
+        linked_agents = agent.get("agents", [])
+        agent = self.sanitize_agent(agent)
+        if agent.type == "groupchat":
+            groupchat_agents = [self.load(agent) for agent in linked_agents]
+            group_chat_config = self._serialize_agent(agent)
+            group_chat_config["agents"] = groupchat_agents
             groupchat = autogen.GroupChat(**group_chat_config)
             agent = ExtendedGroupChatManager(
                 groupchat=groupchat,
-                **agent_spec.config.dict(),
                 message_processor=self.process_message,
+                llm_config=agent.config.llm_config.model_dump(),
             )
             return agent
 
         else:
-            agent = self.load_agent_config(agent_spec.config, agent_spec.type)
+            if agent.type == "assistant":
+                agent = ExtendedConversableAgent(
+                    **self._serialize_agent(agent),
+                    message_processor=self.process_message,
+                )
+            elif agent.type == "userproxy":
+                agent = ExtendedConversableAgent(
+                    **self._serialize_agent(agent),
+                    message_processor=self.process_message,
+                )
+            else:
+                raise ValueError(f"Unknown agent type: {agent.type}")
             return agent
-
-    def load_agent_config(
-        self, agent_config: AgentConfig, agent_type: str
-    ) -> autogen.Agent:
-        """
-        Loads an agent based on the provided agent configuration.
-
-        Args:
-            agent_config: The configuration of the agent to be loaded.
-            agent_type: The type of the agent to be loaded.
-
-        Returns:
-            An instance of the loaded agent.
-        """
-        if agent_type == "assistant":
-            agent = ExtendedConversableAgent(
-                **agent_config.dict(), message_processor=self.process_message
-            )
-        elif agent_type == "userproxy":
-            agent = ExtendedConversableAgent(
-                **agent_config.dict(), message_processor=self.process_message
-            )
-        else:
-            raise ValueError(f"Unknown agent type: {agent_type}")
-
-        return agent
 
     def run(self, message: str, clear_history: bool = False) -> None:
         """
@@ -307,10 +270,11 @@ class ExtendedConversableAgent(autogen.ConversableAgent):
         silent: Optional[bool] = False,
     ):
         if self.message_processor:
-            self.message_processor(
-                sender, self, message, request_reply, silent, sender_type="agent"
-            )
+            self.message_processor(sender, self, message, request_reply, silent, sender_type="agent")
         super().receive(message, sender, request_reply, silent)
+
+
+""
 
 
 class ExtendedGroupChatManager(autogen.GroupChatManager):
@@ -326,7 +290,5 @@ class ExtendedGroupChatManager(autogen.GroupChatManager):
         silent: Optional[bool] = False,
     ):
         if self.message_processor:
-            self.message_processor(
-                sender, self, message, request_reply, silent, sender_type="groupchat"
-            )
+            self.message_processor(sender, self, message, request_reply, silent, sender_type="groupchat")
         super().receive(message, sender, request_reply, silent)
